@@ -112,6 +112,12 @@ if st.session_state.selected_type:
     with col4:
         st.session_state.selected_band_count = st.selectbox("Band-wise Count:", bands)
 
+# --- Update Remaining Count ---
+def update_remaining_count(df):
+    if not df.empty:
+        df["Remaning_Count"] = df.get("Count_Start", 0) - df.get("Used_Count", 0)
+    return df
+
 # --- Model-wise counts ---
 def get_model_counts(df):
     if df.empty:
@@ -124,44 +130,37 @@ def get_model_counts(df):
     ).reset_index()
     return summary
 
-# --- Circular Progress with Plotly ---
-def circular_progress(value, max_value, color="#636efa"):
-    fig = go.Figure(go.Indicator(
-        mode = "gauge+number",
-        value = value,
-        number={"suffix": ""},
-        gauge={'axis': {'range': [0, max_value]},
-               'bar': {'color': color},
-               'bgcolor': "#e9ecef",
-               'borderwidth': 0,
-               'steps': [{'range': [0, max_value], 'color': '#f1f5f9'}]}
+# --- Horizontal Bar Chart for Batch Summary ---
+def horizontal_bar_chart(model_summary, color="#636efa"):
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=model_summary["totalRemaining"],
+        y=model_summary["Model"],
+        orientation='h',
+        text=model_summary["totalRemaining"],
+        textposition="auto",
+        marker_color=color
     ))
-    fig.update_layout(height=250, margin=dict(l=20,r=20,t=20,b=20))
+    fig.update_layout(height=300, margin=dict(l=20,r=20,t=20,b=20))
     return fig
 
 # --- Display batch summary ---
-# --- Display batch summary with separate charts per model ---
 if st.session_state.selected_batch and st.session_state.selected_type:
     filtered_df = get_filtered_data(df)
-
-    # Make sure Remaning_Count is updated
-    filtered_df["Remaning_Count"] = filtered_df.get("Count_Start", 0) - filtered_df.get("Used_Count", 0)
+    filtered_df = update_remaining_count(filtered_df)
 
     model_summary = filtered_df.groupby(["Model", "Project"]).agg(
-        totalStart=("Count_Start", "sum"),
-        totalRemaining=("Remaning_Count", "sum")
+        totalStart=("Count_Start","sum"),
+        totalRemaining=("Remaning_Count","sum")
     ).reset_index()
 
     st.subheader(f"Batch {st.session_state.selected_batch} - {st.session_state.selected_type} Summary")
 
-    # Dynamically create one chart per model
     for idx, row in model_summary.iterrows():
         st.markdown("---")
         st.markdown(f"### Model: {row['Model']}  | Project: {row['Project']}")
-        st.plotly_chart(circular_progress(row['totalRemaining'], max(1, row['totalStart']), color="#8b5cf6"),
-                        use_container_width=True)
+        st.plotly_chart(horizontal_bar_chart(pd.DataFrame([row]), color="#8b5cf6"), use_container_width=True)
         st.markdown(f"**Start:** {row['totalStart']}  | **Remaining:** {row['totalRemaining']}")
-
 
 # --- Display editable table ---
 def display_table(df, data_type):
@@ -171,6 +170,7 @@ def display_table(df, data_type):
     edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
     # Save edits automatically
     if edited_df is not None:
+        edited_df = update_remaining_count(edited_df)
         if data_type == "Antenna":
             st.session_state.antenna_data.update(edited_df)
             st.session_state.antenna_data.to_excel(antenna_file_path, index=False)
@@ -200,10 +200,10 @@ rru_start, rru_remaining = get_total_counts(st.session_state.rru_data, st.sessio
 
 col1, col2 = st.columns(2)
 with col1:
-    st.plotly_chart(circular_progress(antenna_remaining, max(1,antenna_start), color="#10b981"))
+    st.plotly_chart(horizontal_bar_chart(pd.DataFrame([{"Model":"Antenna","totalRemaining":antenna_remaining}]), color="#10b981"))
     st.markdown(f"**Antenna Total Start:** {antenna_start}")
 with col2:
-    st.plotly_chart(circular_progress(rru_remaining, max(1,rru_start), color="#3b82f6"))
+    st.plotly_chart(horizontal_bar_chart(pd.DataFrame([{"Model":"RRU","totalRemaining":rru_remaining}]), color="#3b82f6"))
     st.markdown(f"**RRU Total Start:** {rru_start}")
 
 # --- Export to Excel ---
@@ -212,9 +212,7 @@ def to_excel_bytes(df_dict):
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         for name, data in df_dict.items():
             data.to_excel(writer, sheet_name=name, index=False)
-        writer.save()
-    processed_data = output.getvalue()
-    return processed_data
+    return output.getvalue()
 
 if st.button("📥 Export Updated Excel Files"):
     dfs = {}
@@ -223,6 +221,4 @@ if st.button("📥 Export Updated Excel Files"):
     if not st.session_state.rru_data.empty:
         dfs["RRU"] = st.session_state.rru_data
     if dfs:
-        excel_bytes = to_excel_bytes(dfs)
-        st.download_button("Download Excel", data=excel_bytes, file_name="Dashboard_Updated.xlsx")
-
+        st.download_button("Download Excel", data=to_excel_bytes(dfs), file_name="Dashboard_Updated.xlsx")
