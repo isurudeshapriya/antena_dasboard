@@ -159,7 +159,7 @@ if st.session_state.selected_batch and st.session_state.selected_type:
         f"Batch {st.session_state.selected_batch} - {st.session_state.selected_type} Summary"
     )
 
-    charts_per_row = 3  # 🔧 change to 2 if screen is small
+    charts_per_row = 6  # 🔧 change to 2 if screen is small
 
     rows = [
         model_summary.iloc[i:i + charts_per_row]
