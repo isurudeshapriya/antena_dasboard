@@ -155,12 +155,36 @@ if st.session_state.selected_batch and st.session_state.selected_type:
     st.subheader(f"Batch {st.session_state.selected_batch} - {st.session_state.selected_type} Summary")
 
     # Dynamically create one chart per model
-    for idx, row in model_summary.iterrows():
-        st.markdown("---")
-        st.markdown(f"### Model: {row['Model']}  | Project: {row['Project']}")
-        st.plotly_chart(circular_progress(row['totalRemaining'], max(1, row['totalStart']), color="#8b5cf6"),
-                        use_container_width=True)
-        st.markdown(f"**Start:** {row['totalStart']}  | **Remaining:** {row['totalRemaining']}")
+    st.subheader(
+        f"Batch {st.session_state.selected_batch} - {st.session_state.selected_type} Summary"
+    )
+
+    charts_per_row = 3  # 🔧 change to 2 if screen is small
+
+    rows = [
+        model_summary.iloc[i:i + charts_per_row]
+        for i in range(0, len(model_summary), charts_per_row)
+    ]
+
+    for row_df in rows:
+        cols = st.columns(len(row_df))
+        for col, (_, row) in zip(cols, row_df.iterrows()):
+            with col:
+                st.markdown(
+                    f"**Model:** {row['Model']}  \n"
+                    f"**Project:** {row['Project']}"
+                )
+                st.plotly_chart(
+                    circular_progress(
+                        row["totalRemaining"],
+                        max(1, row["totalStart"]),
+                        color="#8b5cf6"
+                    ),
+                    use_container_width=True
+                )
+                st.caption(
+                    f"Start: {row['totalStart']} | Remaining: {row['totalRemaining']}"
+                )
 
 
 # --- Display editable table ---
