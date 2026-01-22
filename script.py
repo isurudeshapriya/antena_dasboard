@@ -254,9 +254,8 @@ if st.button("📥 Export Updated Excel Files"):
 
     
     with st.sidebar:
-    st.header("📤 Upload Excel Files")
-
-    st.file_uploader(
+        st.header("📤 Upload Excel Files")
+        st.file_uploader(
         "Antenna Excel",
         type=["xlsx"],
         key="antenna_file",
@@ -264,8 +263,7 @@ if st.button("📥 Export Updated Excel Files"):
             st.session_state.antenna_file, "antenna"
         )
     )
-
-    st.file_uploader(
+        st.file_uploader(
         "RRU Excel",
         type=["xlsx"],
         key="rru_file",
