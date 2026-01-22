@@ -56,10 +56,7 @@ def handle_file_upload(uploaded_file, data_type):
             st.session_state.rru_data = df
             df.to_excel(rru_file_path, index=False)
 
-st.file_uploader("Upload Antenna Excel File:", type=["xlsx"], key="antenna_file",
-                 on_change=lambda: handle_file_upload(st.session_state.antenna_file, "antenna"))
-st.file_uploader("Upload RRU Excel File:", type=["xlsx"], key="rru_file",
-                 on_change=lambda: handle_file_upload(st.session_state.rru_file, "rru"))
+
 
 # --- Clear Data ---
 if st.button("🗑️ Clear All Data"):
@@ -239,6 +236,27 @@ def to_excel_bytes(df_dict):
         writer.save()
     processed_data = output.getvalue()
     return processed_data
+    with st.sidebar:
+    st.header("📤 Upload Excel Files")
+
+    st.file_uploader(
+        "Antenna Excel",
+        type=["xlsx"],
+        key="antenna_file",
+        on_change=lambda: handle_file_upload(
+            st.session_state.antenna_file, "antenna"
+        )
+    )
+
+    st.file_uploader(
+        "RRU Excel",
+        type=["xlsx"],
+        key="rru_file",
+        on_change=lambda: handle_file_upload(
+            st.session_state.rru_file, "rru"
+        )
+    )
+
 
 if st.button("📥 Export Updated Excel Files"):
     dfs = {}
