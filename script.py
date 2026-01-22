@@ -236,6 +236,23 @@ def to_excel_bytes(df_dict):
         writer.save()
     processed_data = output.getvalue()
     return processed_data
+
+if st.button("📥 Export Updated Excel Files"):
+    dfs = {}
+    if not st.session_state.antenna_data.empty:
+        dfs["Antenna"] = st.session_state.antenna_data
+    if not st.session_state.rru_data.empty:
+        dfs["RRU"] = st.session_state.rru_data
+    if dfs:
+        excel_bytes = to_excel_bytes(dfs)
+        st.download_button("Download Excel", data=excel_bytes, file_name="Dashboard_Updated.xlsx")
+
+
+
+
+
+
+    
     with st.sidebar:
     st.header("📤 Upload Excel Files")
 
@@ -257,13 +274,3 @@ def to_excel_bytes(df_dict):
         )
     )
 
-
-if st.button("📥 Export Updated Excel Files"):
-    dfs = {}
-    if not st.session_state.antenna_data.empty:
-        dfs["Antenna"] = st.session_state.antenna_data
-    if not st.session_state.rru_data.empty:
-        dfs["RRU"] = st.session_state.rru_data
-    if dfs:
-        excel_bytes = to_excel_bytes(dfs)
-        st.download_button("Download Excel", data=excel_bytes, file_name="Dashboard_Updated.xlsx")
