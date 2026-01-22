@@ -44,17 +44,6 @@ def load_saved_data():
 
 load_saved_data()
 
-# --- File Upload ---
-def handle_file_upload(uploaded_file, data_type):
-    if uploaded_file is not None:
-        df = pd.read_excel(uploaded_file)
-        df["Remaning_Count"] = df.get("Count_Start", 0) - df.get("Used_Count", 0)
-        if data_type == "antenna":
-            st.session_state.antenna_data = df
-            df.to_excel(antenna_file_path, index=False)
-        else:
-            st.session_state.rru_data = df
-            df.to_excel(rru_file_path, index=False)
 
 
 
@@ -246,6 +235,19 @@ if st.button("📥 Export Updated Excel Files"):
     if dfs:
         excel_bytes = to_excel_bytes(dfs)
         st.download_button("Download Excel", data=excel_bytes, file_name="Dashboard_Updated.xlsx")
+
+    # --- File Upload ---
+def handle_file_upload(uploaded_file, data_type):
+    if uploaded_file is not None:
+        df = pd.read_excel(uploaded_file)
+        df["Remaning_Count"] = df.get("Count_Start", 0) - df.get("Used_Count", 0)
+        if data_type == "antenna":
+            st.session_state.antenna_data = df
+            df.to_excel(antenna_file_path, index=False)
+        else:
+            st.session_state.rru_data = df
+            df.to_excel(rru_file_path, index=False)
+
 
 
 
