@@ -44,8 +44,9 @@ def load_saved_data():
 
 load_saved_data()
 
-
-
+# --- Show info if data exists ---
+if not st.session_state.antenna_data.empty or not st.session_state.rru_data.empty:
+    st.success("✅ Dashboard loaded with saved data!")
 
 # --- Clear Data ---
 if st.button("🗑️ Clear All Data"):
@@ -61,6 +62,7 @@ if st.button("🗑️ Clear All Data"):
         if os.path.exists(path):
             os.remove(path)
     st.success("All data cleared!")
+    st.rerun()
 
 # --- Type Selection ---
 types = []
@@ -69,7 +71,10 @@ if not st.session_state.antenna_data.empty:
 if not st.session_state.rru_data.empty:
     types.append("RRU")
 
-st.session_state.selected_type = st.selectbox("Select Type:", [""] + types)
+if types:
+    st.session_state.selected_type = st.selectbox("Select Type:", [""] + types)
+else:
+    st.info("📤 No data found. Please upload Excel files below to get started.")
 
 # --- Filter options ---
 def get_filtered_data(df):
@@ -98,18 +103,6 @@ if st.session_state.selected_type:
     with col4:
         st.session_state.selected_band_count = st.selectbox("Band-wise Count:", bands)
 
-# --- Model-wise counts ---
-def get_model_counts(df):
-    if df.empty:
-        return pd.DataFrame()
-    df_model = df.copy()
-    df_model["Model"] = df_model.get("Model", df_model.get("Type", "Not Specified"))
-    summary = df_model.groupby(["Model","Project"]).agg(
-        totalStart=("Count_Start","sum"),
-        totalRemaining=("Remaning_Count","sum")
-    ).reset_index()
-    return summary
-
 # --- Circular Progress with Plotly ---
 def circular_progress(value, max_value, color="#636efa"):
     fig = go.Figure(go.Indicator(
@@ -126,7 +119,6 @@ def circular_progress(value, max_value, color="#636efa"):
     return fig
 
 # --- Display batch summary ---
-# --- Display batch summary with separate charts per model ---
 if st.session_state.selected_batch and st.session_state.selected_type:
     filtered_df = get_filtered_data(df)
 
@@ -140,12 +132,7 @@ if st.session_state.selected_batch and st.session_state.selected_type:
 
     st.subheader(f"Batch {st.session_state.selected_batch} - {st.session_state.selected_type} Summary")
 
-    # Dynamically create one chart per model
-    st.subheader(
-        f"Batch {st.session_state.selected_batch} - {st.session_state.selected_type} Summary"
-    )
-
-    charts_per_row = 6  # 🔧 change to 2 if screen is small
+    charts_per_row = 6
 
     rows = [
         model_summary.iloc[i:i + charts_per_row]
@@ -172,7 +159,6 @@ if st.session_state.selected_batch and st.session_state.selected_type:
                     f"Start: {row['totalStart']} | Remaining: {row['totalRemaining']}"
                 )
 
-
 # --- Display editable table ---
 def display_table(df, data_type):
     if df.empty:
@@ -181,11 +167,12 @@ def display_table(df, data_type):
     edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
     # Save edits automatically
     if edited_df is not None:
+        edited_df["Remaning_Count"] = edited_df.get("Count_Start", 0) - edited_df.get("Used_Count", 0)
         if data_type == "Antenna":
-            st.session_state.antenna_data.update(edited_df)
+            st.session_state.antenna_data = edited_df
             st.session_state.antenna_data.to_excel(antenna_file_path, index=False)
         else:
-            st.session_state.rru_data.update(edited_df)
+            st.session_state.rru_data = edited_df
             st.session_state.rru_data.to_excel(rru_file_path, index=False)
     return edited_df
 
@@ -210,10 +197,10 @@ rru_start, rru_remaining = get_total_counts(st.session_state.rru_data, st.sessio
 
 col1, col2 = st.columns(2)
 with col1:
-    st.plotly_chart(circular_progress(antenna_remaining, max(1,antenna_start), color="#10b981"))
+    st.plotly_chart(circular_progress(antenna_remaining, max(1,antenna_start), color="#10b981"), use_container_width=True)
     st.markdown(f"**Antenna Total Start:** {antenna_start}")
 with col2:
-    st.plotly_chart(circular_progress(rru_remaining, max(1,rru_start), color="#3b82f6"))
+    st.plotly_chart(circular_progress(rru_remaining, max(1,rru_start), color="#3b82f6"), use_container_width=True)
     st.markdown(f"**RRU Total Start:** {rru_start}")
 
 # --- Export to Excel ---
@@ -222,7 +209,6 @@ def to_excel_bytes(df_dict):
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         for name, data in df_dict.items():
             data.to_excel(writer, sheet_name=name, index=False)
-        writer.save()
     processed_data = output.getvalue()
     return processed_data
 
@@ -236,7 +222,7 @@ if st.button("📥 Export Updated Excel Files"):
         excel_bytes = to_excel_bytes(dfs)
         st.download_button("Download Excel", data=excel_bytes, file_name="Dashboard_Updated.xlsx")
 
-    # --- File Upload ---
+# --- File Upload Handler ---
 def handle_file_upload(uploaded_file, data_type):
     if uploaded_file is not None:
         df = pd.read_excel(uploaded_file)
@@ -248,29 +234,39 @@ def handle_file_upload(uploaded_file, data_type):
             st.session_state.rru_data = df
             df.to_excel(rru_file_path, index=False)
 
+# =========================================================
+# FILE UPLOAD SECTION - AT THE BOTTOM
+# =========================================================
+st.divider()
+st.header("📤 Upload Excel Files")
 
+col_upload1, col_upload2 = st.columns(2)
 
-
-
-
-
-    
-    with st.sidebar:
-        st.header("📤 Upload Excel Files")
-        st.file_uploader(
-        "Antenna Excel",
+with col_upload1:
+    antenna_file = st.file_uploader(
+        "Upload Antenna Excel",
         type=["xlsx"],
-        key="antenna_file",
-        on_change=lambda: handle_file_upload(
-            st.session_state.antenna_file, "antenna"
-        )
+        key="antenna_file"
     )
-        st.file_uploader(
-        "RRU Excel",
-        type=["xlsx"],
-        key="rru_file",
-        on_change=lambda: handle_file_upload(
-            st.session_state.rru_file, "rru"
-        )
-    )
+    if antenna_file is not None:
+        handle_file_upload(antenna_file, "antenna")
+        st.success("✅ Antenna file uploaded successfully!")
+        st.rerun()
 
+with col_upload2:
+    rru_file = st.file_uploader(
+        "Upload RRU Excel",
+        type=["xlsx"],
+        key="rru_file"
+    )
+    if rru_file is not None:
+        handle_file_upload(rru_file, "rru")
+        st.success("✅ RRU file uploaded successfully!")
+        st.rerun()
+
+
+
+
+
+
+   
