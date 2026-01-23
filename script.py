@@ -35,11 +35,15 @@ rru_file_path = os.path.join(DATA_FOLDER, "rru.xlsx")
 def load_saved_data():
     if os.path.exists(antenna_file_path) and st.session_state.antenna_data.empty:
         df = pd.read_excel(antenna_file_path)
-        df["Remaning_Count"] = df.get("Count_Start", 0) - df.get("Used_Count", 0)
+        df["Count_Start"] = pd.to_numeric(df.get("Count_Start", 0), errors='coerce').fillna(0)
+        df["Used_Count"] = pd.to_numeric(df.get("Used_Count", 0), errors='coerce').fillna(0)
+        df["Remaning_Count"] = df["Count_Start"] - df["Used_Count"]
         st.session_state.antenna_data = df
     if os.path.exists(rru_file_path) and st.session_state.rru_data.empty:
         df = pd.read_excel(rru_file_path)
-        df["Remaning_Count"] = df.get("Count_Start", 0) - df.get("Used_Count", 0)
+        df["Count_Start"] = pd.to_numeric(df.get("Count_Start", 0), errors='coerce').fillna(0)
+        df["Used_Count"] = pd.to_numeric(df.get("Used_Count", 0), errors='coerce').fillna(0)
+        df["Remaning_Count"] = df["Count_Start"] - df["Used_Count"]
         st.session_state.rru_data = df
 
 load_saved_data()
@@ -123,7 +127,9 @@ if st.session_state.selected_batch and st.session_state.selected_type:
     filtered_df = get_filtered_data(df)
 
     # Make sure Remaning_Count is updated
-    filtered_df["Remaning_Count"] = filtered_df.get("Count_Start", 0) - filtered_df.get("Used_Count", 0)
+    filtered_df["Count_Start"] = pd.to_numeric(filtered_df.get("Count_Start", 0), errors='coerce').fillna(0)
+    filtered_df["Used_Count"] = pd.to_numeric(filtered_df.get("Used_Count", 0), errors='coerce').fillna(0)
+    filtered_df["Remaning_Count"] = filtered_df["Count_Start"] - filtered_df["Used_Count"]
 
     model_summary = filtered_df.groupby(["Model", "Project"]).agg(
         totalStart=("Count_Start", "sum"),
@@ -159,49 +165,81 @@ if st.session_state.selected_batch and st.session_state.selected_type:
                     f"Start: {row['totalStart']} | Remaining: {row['totalRemaining']}"
                 )
 
-# --- Display editable table ---
+# --- Display editable table with auto-calculation ---
 def display_table(df, data_type):
     if df.empty:
         st.info("No data to display")
         return df
-    edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
-    # Save edits automatically
-    if edited_df is not None:
-        edited_df["Remaning_Count"] = edited_df.get("Count_Start", 0) - edited_df.get("Used_Count", 0)
+    
+    st.info("💡 Edit Count_Start or Used_Count - Remaining Count will auto-update!")
+    
+    # Create editable dataframe
+    edited_df = st.data_editor(
+        df, 
+        num_rows="dynamic", 
+        use_container_width=True,
+        key=f"editor_{data_type}"
+    )
+    
+    # Auto-calculate Remaning_Count when edited
+    if edited_df is not None and not edited_df.empty:
+        # Convert to numeric and handle errors
+        edited_df["Count_Start"] = pd.to_numeric(edited_df.get("Count_Start", 0), errors='coerce').fillna(0)
+        edited_df["Used_Count"] = pd.to_numeric(edited_df.get("Used_Count", 0), errors='coerce').fillna(0)
+        
+        # Recalculate remaining
+        edited_df["Remaning_Count"] = edited_df["Count_Start"] - edited_df["Used_Count"]
+        
+        # Save back to session state and file
         if data_type == "Antenna":
-            st.session_state.antenna_data = edited_df
-            st.session_state.antenna_data.to_excel(antenna_file_path, index=False)
+            st.session_state.antenna_data = edited_df.copy()
+            edited_df.to_excel(antenna_file_path, index=False)
         else:
-            st.session_state.rru_data = edited_df
-            st.session_state.rru_data.to_excel(rru_file_path, index=False)
+            st.session_state.rru_data = edited_df.copy()
+            edited_df.to_excel(rru_file_path, index=False)
+    
     return edited_df
 
 if st.session_state.selected_type:
     df_to_show = get_filtered_data(df)
     st.subheader(f"{st.session_state.selected_type} Data Table")
-    display_table(df_to_show, st.session_state.selected_type)
+    edited_result = display_table(df_to_show, st.session_state.selected_type)
+    
+    # Add refresh button
+    if st.button("🔄 Refresh Dashboard"):
+        st.rerun()
 
 # --- Total Counts ---
 def get_total_counts(df, band=""):
     if df.empty:
-        return 0,0
+        return 0, 0
     data = df.copy()
     if band:
         data = data[data["Bands"].astype(str) == band]
-    total_start = data["Count_Start"].sum()
-    total_remaining = data["Remaning_Count"].sum()
+    
+    # Ensure numeric
+    data["Count_Start"] = pd.to_numeric(data.get("Count_Start", 0), errors='coerce').fillna(0)
+    data["Remaning_Count"] = pd.to_numeric(data.get("Remaning_Count", 0), errors='coerce').fillna(0)
+    
+    total_start = int(data["Count_Start"].sum())
+    total_remaining = int(data["Remaning_Count"].sum())
     return total_start, total_remaining
 
 antenna_start, antenna_remaining = get_total_counts(st.session_state.antenna_data, st.session_state.selected_band_count)
 rru_start, rru_remaining = get_total_counts(st.session_state.rru_data, st.session_state.selected_band_count)
 
+st.divider()
+st.subheader("📊 Total Counts Summary")
+
 col1, col2 = st.columns(2)
 with col1:
-    st.plotly_chart(circular_progress(antenna_remaining, max(1,antenna_start), color="#10b981"), use_container_width=True)
+    st.plotly_chart(circular_progress(antenna_remaining, max(1, antenna_start), color="#10b981"), use_container_width=True)
     st.markdown(f"**Antenna Total Start:** {antenna_start}")
+    st.markdown(f"**Antenna Remaining:** {antenna_remaining}")
 with col2:
-    st.plotly_chart(circular_progress(rru_remaining, max(1,rru_start), color="#3b82f6"), use_container_width=True)
+    st.plotly_chart(circular_progress(rru_remaining, max(1, rru_start), color="#3b82f6"), use_container_width=True)
     st.markdown(f"**RRU Total Start:** {rru_start}")
+    st.markdown(f"**RRU Remaining:** {rru_remaining}")
 
 # --- Export to Excel ---
 def to_excel_bytes(df_dict):
@@ -226,7 +264,10 @@ if st.button("📥 Export Updated Excel Files"):
 def handle_file_upload(uploaded_file, data_type):
     if uploaded_file is not None:
         df = pd.read_excel(uploaded_file)
-        df["Remaning_Count"] = df.get("Count_Start", 0) - df.get("Used_Count", 0)
+        df["Count_Start"] = pd.to_numeric(df.get("Count_Start", 0), errors='coerce').fillna(0)
+        df["Used_Count"] = pd.to_numeric(df.get("Used_Count", 0), errors='coerce').fillna(0)
+        df["Remaning_Count"] = df["Count_Start"] - df["Used_Count"]
+        
         if data_type == "antenna":
             st.session_state.antenna_data = df
             df.to_excel(antenna_file_path, index=False)
@@ -263,9 +304,6 @@ with col_upload2:
         handle_file_upload(rru_file, "rru")
         st.success("✅ RRU file uploaded successfully!")
         st.rerun()
-
-
-
 
 
 
