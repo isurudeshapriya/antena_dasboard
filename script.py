@@ -202,30 +202,35 @@ if st.session_state.selected_type:
     # Add refresh button
     if st.button("🔄 Refresh Dashboard"):
         st.rerun()
-def get_final_band_count(df, band=""):
-    if df.empty:
+
+
+# --- Function to get total and latest remaining per model ---
+def get_model_counts(df, model):
+    if df.empty or not model:
         return 0, 0
-    data = df.copy()
     
-    # Filter by band if provided
-    if band:
-        data = data[data["Bands"].astype(str) == band]
+    data = df.copy()
+    data = data[data["Model"].astype(str) == model]
+    
+    if data.empty:
+        return 0, 0
     
     # Ensure numeric
     data["Count_Start"] = pd.to_numeric(data.get("Count_Start", 0), errors='coerce').fillna(0)
     data["Used_Count"] = pd.to_numeric(data.get("Used_Count", 0), errors='coerce').fillna(0)
-    
-    # Recalculate remaining
     data["Remaning_Count"] = data["Count_Start"] - data["Used_Count"]
     
-    # Get latest batch per model (max batch number)
-    idx = data.groupby("Model")["Batch"].transform(max) == data["Batch"]
-    final_data = data[idx]
+    # Total start = sum across all batches
+    total_start = int(data["Count_Start"].sum())
     
-    # Sum remaining counts of only the latest batch per model
-    total_start = int(final_data["Count_Start"].sum())
-    total_remaining = int(final_data["Remaning_Count"].sum())
+    # Latest batch remaining
+    latest_batch = data["Batch"].max()
+    latest_data = data[data["Batch"] == latest_batch]
+    total_remaining = int(latest_data["Remaning_Count"].sum())
+    
     return total_start, total_remaining
+
+
 
 # Use for dashboard summary
 antenna_start, antenna_remaining = get_final_band_count(
