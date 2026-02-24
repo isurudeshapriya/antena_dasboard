@@ -274,15 +274,7 @@ def get_model_counts(df, model):
 
 
 
-# Use for dashboard summary
-antenna_start, antenna_remaining = get_final_band_count(
-    st.session_state.antenna_data, band=st.session_state.selected_band_count
-)
-rru_start, rru_remaining = get_final_band_count(
-    st.session_state.rru_data, band=st.session_state.selected_band_count
-)
-st.divider()
-st.subheader("📊 Total Counts Summary")
+
 
 col1, col2 = st.columns(2)
 with col1:
