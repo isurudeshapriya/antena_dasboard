@@ -25,8 +25,8 @@ if "selected_project" not in st.session_state:
     st.session_state.selected_project = ""
 if "selected_batch" not in st.session_state:
     st.session_state.selected_batch = ""
-if "selected_model" not in st.session_state:
-    st.session_state.selected_model = ""
+if "selected_band_count" not in st.session_state:
+    st.session_state.selected_band_count = ""
 
 # --- Load previous data if exists ---
 antenna_file_path = os.path.join(DATA_FOLDER, "antenna.xlsx")
@@ -52,14 +52,20 @@ load_saved_data()
 if not st.session_state.antenna_data.empty or not st.session_state.rru_data.empty:
     st.success("✅ Dashboard loaded with saved data!")
 
-# --- Clear Filters (without deleting uploaded data) ---
-if st.button("🗑️ Clear Filters"):
+# --- Clear Data ---
+if st.button("🗑️ Clear All Data"):
+    st.session_state.antenna_data = pd.DataFrame()
+    st.session_state.rru_data = pd.DataFrame()
     st.session_state.selected_type = ""
     st.session_state.selected_band = ""
     st.session_state.selected_project = ""
     st.session_state.selected_batch = ""
-    
-    st.success("Filters cleared! Dashboard reset to default.")
+    st.session_state.selected_band_count = ""
+    for file in ["antenna.xlsx", "rru.xlsx"]:
+        path = os.path.join(DATA_FOLDER, file)
+        if os.path.exists(path):
+            os.remove(path)
+    st.success("All data cleared!")
     st.rerun()
 
 # --- Type Selection ---
@@ -100,48 +106,6 @@ if st.session_state.selected_type:
         st.session_state.selected_batch = st.selectbox("Select Batch:", batches)
     with col4:
         st.session_state.selected_band_count = st.selectbox("Band-wise Count:", bands)
-
-
-
-
-# --- Model Selection ---
-all_models = sorted(list(set(
-    st.session_state.antenna_data["Model"].unique().tolist() +
-    st.session_state.rru_data["Model"].unique().tolist()
-)))
-st.session_state.selected_model = st.selectbox("Select Model:", [""] + all_models)
-
-# --- Total Counts per selected model ---
-if st.session_state.selected_model:
-    selected_model = st.session_state.selected_model
-
-    antenna_start, antenna_remaining = get_model_counts(
-        st.session_state.antenna_data, selected_model
-    )
-    rru_start, rru_remaining = get_model_counts(
-        st.session_state.rru_data, selected_model
-    )
-
-    st.divider()
-    st.subheader(f"📊 Total Counts Summary - Model: {selected_model}")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.plotly_chart(
-            circular_progress(antenna_remaining, max(1, antenna_start), color="#10b981"),
-            use_container_width=True
-        )
-        st.markdown(f"**Antenna Total Start:** {antenna_start}")
-        st.markdown(f"**Antenna Remaining (latest batch):** {antenna_remaining}")
-    with col2:
-        st.plotly_chart(
-            circular_progress(rru_remaining, max(1, rru_start), color="#3b82f6"),
-            use_container_width=True
-        )
-        st.markdown(f"**RRU Total Start:** {rru_start}")
-        st.markdown(f"**RRU Remaining (latest batch):** {rru_remaining}")
-
-
 
 # --- Circular Progress with Plotly ---
 def circular_progress(value, max_value, color="#636efa"):
@@ -245,36 +209,27 @@ if st.session_state.selected_type:
     if st.button("🔄 Refresh Dashboard"):
         st.rerun()
 
-
-# --- Function to get total and latest remaining per model ---
-def get_model_counts(df, model):
-    if df.empty or not model:
+# --- Total Counts ---
+def get_total_counts(df, band=""):
+    if df.empty:
         return 0, 0
-    
     data = df.copy()
-    data = data[data["Model"].astype(str) == model]
-    
-    if data.empty:
-        return 0, 0
+    if band:
+        data = data[data["Bands"].astype(str) == band]
     
     # Ensure numeric
     data["Count_Start"] = pd.to_numeric(data.get("Count_Start", 0), errors='coerce').fillna(0)
-    data["Used_Count"] = pd.to_numeric(data.get("Used_Count", 0), errors='coerce').fillna(0)
-    data["Remaning_Count"] = data["Count_Start"] - data["Used_Count"]
+    data["Remaning_Count"] = pd.to_numeric(data.get("Remaning_Count", 0), errors='coerce').fillna(0)
     
-    # Total start = sum across all batches
     total_start = int(data["Count_Start"].sum())
-    
-    # Latest batch remaining
-    latest_batch = data["Batch"].max()
-    latest_data = data[data["Batch"] == latest_batch]
-    total_remaining = int(latest_data["Remaning_Count"].sum())
-    
+    total_remaining = int(data["Remaning_Count"].sum())
     return total_start, total_remaining
 
+antenna_start, antenna_remaining = get_total_counts(st.session_state.antenna_data, st.session_state.selected_band_count)
+rru_start, rru_remaining = get_total_counts(st.session_state.rru_data, st.session_state.selected_band_count)
 
-
-
+st.divider()
+st.subheader("📊 Total Counts Summary")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -349,6 +304,8 @@ with col_upload2:
         handle_file_upload(rru_file, "rru")
         st.success("✅ RRU file uploaded successfully!")
         st.rerun()
+
+
 
 
    
