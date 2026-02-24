@@ -53,20 +53,14 @@ if not st.session_state.antenna_data.empty or not st.session_state.rru_data.empt
     st.success("✅ Dashboard loaded with saved data!")
 
 # --- Clear Data ---
-if st.button("🗑️ Clear All Data"):
-    st.session_state.antenna_data = pd.DataFrame()
-    st.session_state.rru_data = pd.DataFrame()
+if st.button("🔄 Reset Filters"):
     st.session_state.selected_type = ""
     st.session_state.selected_band = ""
     st.session_state.selected_project = ""
     st.session_state.selected_batch = ""
     st.session_state.selected_band_count = ""
-    for file in ["antenna.xlsx", "rru.xlsx"]:
-        path = os.path.join(DATA_FOLDER, file)
-        if os.path.exists(path):
-            os.remove(path)
-    st.success("All data cleared!")
     st.rerun()
+
 
 # --- Type Selection ---
 types = []
