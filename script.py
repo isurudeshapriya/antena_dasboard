@@ -58,7 +58,7 @@ if st.button("🗑️ Clear Filters"):
     st.session_state.selected_band = ""
     st.session_state.selected_project = ""
     st.session_state.selected_batch = ""
-    st.session_state.selected_band_count = ""
+    
     st.success("Filters cleared! Dashboard reset to default.")
     st.rerun()
 
@@ -100,6 +100,48 @@ if st.session_state.selected_type:
         st.session_state.selected_batch = st.selectbox("Select Batch:", batches)
     with col4:
         st.session_state.selected_band_count = st.selectbox("Band-wise Count:", bands)
+
+
+
+
+# --- Model Selection ---
+all_models = sorted(list(set(
+    st.session_state.antenna_data["Model"].unique().tolist() +
+    st.session_state.rru_data["Model"].unique().tolist()
+)))
+st.session_state.selected_model = st.selectbox("Select Model:", [""] + all_models)
+
+# --- Total Counts per selected model ---
+if st.session_state.selected_model:
+    selected_model = st.session_state.selected_model
+
+    antenna_start, antenna_remaining = get_model_counts(
+        st.session_state.antenna_data, selected_model
+    )
+    rru_start, rru_remaining = get_model_counts(
+        st.session_state.rru_data, selected_model
+    )
+
+    st.divider()
+    st.subheader(f"📊 Total Counts Summary - Model: {selected_model}")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.plotly_chart(
+            circular_progress(antenna_remaining, max(1, antenna_start), color="#10b981"),
+            use_container_width=True
+        )
+        st.markdown(f"**Antenna Total Start:** {antenna_start}")
+        st.markdown(f"**Antenna Remaining (latest batch):** {antenna_remaining}")
+    with col2:
+        st.plotly_chart(
+            circular_progress(rru_remaining, max(1, rru_start), color="#3b82f6"),
+            use_container_width=True
+        )
+        st.markdown(f"**RRU Total Start:** {rru_start}")
+        st.markdown(f"**RRU Remaining (latest batch):** {rru_remaining}")
+
+
 
 # --- Circular Progress with Plotly ---
 def circular_progress(value, max_value, color="#636efa"):
