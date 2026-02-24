@@ -25,8 +25,8 @@ if "selected_project" not in st.session_state:
     st.session_state.selected_project = ""
 if "selected_batch" not in st.session_state:
     st.session_state.selected_batch = ""
-if "selected_band_count" not in st.session_state:
-    st.session_state.selected_band_count = ""
+if "selected_model" not in st.session_state:
+    st.session_state.selected_model = ""
 
 # --- Load previous data if exists ---
 antenna_file_path = os.path.join(DATA_FOLDER, "antenna.xlsx")
